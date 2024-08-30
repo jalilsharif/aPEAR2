@@ -1,27 +1,49 @@
 Package: aPEAR
-Type: Package
-Title: Clustering and Visualization of Pathway Enrichment Results
-Version: 1.0
-Date: 2023-02-14
-Authors@R: c(person(given = "Ieva", family = "Kerseviciute", email = "kerseviciute.ieva@gmail.com", role = c("aut", "cre"), comment = c(ORCID = "https://orcid.org/0000-0002-9353-038X")))
-Description: Clustering and visualization of pathway enrichment results.
+Title: Advanced Pathway Enrichment Analysis Representation
+Version: 1.0.0
+Authors@R: c(
+  person("Ieva", "Kerseviciute", email = "kerseviciute.ieva@gmail.com", role = c("aut", "cre"), comment = c(ORCID = "0000-0002-9353-038X")),
+  person("Juozas", "Gordevicius", email = "juozas@vugene.com", role = "ths", comment = c(ORCID = "0000-0003-3190-6721")),
+  person("VUGENE, LLC", role = c("cph", "fnd")))
+Description: Simplify pathway enrichment analysis results by detecting clusters
+    of similar pathways and visualizing it as an enrichment network, where
+    nodes and edges describe the pathways and similarity between them,
+    respectively. This reduces the redundancy of the overlapping pathways and
+    helps to notice the most important biological themes in the data
+    (Kerseviciute and Gordevicius (2023) <doi:10.1101/2023.03.28.534514>).
+URL: https://gitlab.com/vugene/aPEAR
+BugReports: https://gitlab.com/vugene/aPEAR/-/issues
 License: MIT + file LICENSE
-RoxygenNote: 7.2.3
 Encoding: UTF-8
-Imports:
-    MCL,
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.2.3
+Suggests: 
+    Spectrum,
+    clusterProfiler,
+    gprofiler2,
+    DOSE,
+    org.Hs.eg.db,
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown,
+    stringr
+Depends:
+    R (>= 3.5.0)
+Config/testthat/edition: 3
+Imports: 
     arules,
     bayesbio,
-    lsa,
-    tibble,
     data.table,
-    foreach,
-    ggforce,
-    ggplot2,
-    igraph,
     dplyr,
-    ggrepel
-Suggests:
-    Spectrum
-URL: https://github.com/ievaKer/aPEAR
-BugReports: https://github.com/ievaKer/aPEAR/issues
+    igraph,
+    lsa,
+    MCL,
+    reshape2,
+    tibble,
+    utils,
+    stats,
+    methods,
+    ggplot2,
+    ggrepel,
+    ggforce
+VignetteBuilder: knitr

@@ -1,91 +1,84 @@
 #' 
-#' Pathway Clustering
+#' Pathway clustering
 #' 
 #' @description Finds clusters in a similarity matrix.
 #' 
 #' @param sim similarity matrix
-#' @param minClusterSize minimum cluster size (integer, >= 1). This parameter is ignored when using
-#' \code{method = 'spectral'}
-#' @param method a method to be used for detecting clusters. Available methods are: \code{'markov'},
+#' @param minClusterSize minimum cluster size. Clusters with less elements than specified
+#' will be dropped
+#' @param method the method to be used for detecting clusters. Available methods are: \code{'markov'},
 #' \code{'hier'} and \code{'spectral'}. Using \code{'spectral'} method requires that you have
-#' \code{Spectrum} package installed.
-#' @param nameMethod a method for setting cluster names. Available methods are: \code{'pagerank'},
-#' \code{'hits'}, and \code{'none'}
+#' \code{Spectrum} package installed
 #' @param verbose enable / disable log messages
+#'
+#' @importFrom data.table as.data.table
+#' @importFrom tibble enframe
+#'
+#' @noRd
 #' 
-#' @importFrom dplyr %>%
-#' 
-#' @export
-#' 
-findClusters <- function(sim,
-                         minClusterSize = 2,
-                         method = c('markov', 'hier', 'spectral'),
-                         nameMethod = c('pagerank', 'hits', 'none'),
-                         verbose = FALSE
+pathwayClusters <- function(sim,
+                            minClusterSize = 2,
+                            method = c('markov', 'hier', 'spectral'),
+                            verbose = FALSE
 ) {
   method <- match.arg(method)
-  nameMethod <- match.arg(nameMethod)
 
-  if (minClusterSize < 1) {
-    warning(paste0('Invalid minClusterSize = ', minClusterSize, '. Will set minClusterSize = 2.'))
+  if (is.na(minClusterSize) | minClusterSize < 1) {
+    warning(paste0('Invalid minClusterSize = ', minClusterSize, '. Setting minClusterSize = 2.'))
     minClusterSize <- 2
   }
 
+  if (minClusterSize > nrow(sim)) {
+    stop(paste0('minClusterSize = ', minClusterSize, ' is greater than the number of available pathways = ', nrow(sim), '.'))
+  }
+
   clusters <- switch(method,
-                     'markov' = findClustersMarkov(sim, minClusterSize, verbose),
-                     'hier' = findClustersHier(sim, minClusterSize, verbose),
-                     'spectral' = findClustersSpectral(sim, verbose))
+                     'markov' = markov(sim, verbose),
+                     'hier' = hierarchical(sim, verbose),
+                     'spectral' = spectral(sim, verbose))
+
+  # Drop clusters with less elements than specified
+  keep <- names(table(clusters))[ which(table(clusters) >= minClusterSize) ]
+  clusters <- clusters[ clusters %in% keep ]
 
   if (length(clusters) == 0) {
     stop('No clusters found.')
   }
 
-  findClusterNames(sim, clusters, nameMethod)
+  clusters %>%
+    tibble::enframe(name = 'Pathway', value = 'ClusterID') %>%
+    data.table::as.data.table()
 }
 
+
+#'
+#' Markov clustering
 #' 
-#' Markov Cluster Algorithm
-#' 
-#' @description Finds clusters in a similarity matrix using Markov Cluster Algorithm.
+#' @description Finds clusters in a similarity matrix using Markov Cluster Algorithm (MCL).
 #' 
 #' @param sim similarity matrix
-#' @param minClusterSize minimum cluster size
 #' @param verbose enable / disable log messages
 #' 
 #' @importFrom MCL mcl
-#' @importFrom dplyr %>%
+#'
+#' @noRd
 #' 
-findClustersMarkov <- function(sim,
-                               minClusterSize = 2,
-                               verbose = FALSE
-) {
+markov <- function(sim, verbose = FALSE) {
   if (verbose) message('Using Markov Cluster Algorithm to detect pathway clusters...')
 
-  allow1 <- ifelse(minClusterSize == 1, TRUE, FALSE)
-
-  res <- mcl(sim,
-             addLoops = FALSE,
-             max.iter = 500,
-             expansion = 2,
-             inflation = 2.5,
-             allow1 = allow1)
+  res <- MCL::mcl(sim,
+                  addLoops = FALSE,
+                  max.iter = 500,
+                  expansion = 2,
+                  inflation = 2.5,
+                  allow1 = TRUE)
 
   if (!('Cluster' %in% names(res))) {
     stop('Unable to cluster data using Markov clustering algorithm.')
   }
 
   clusters <- res$Cluster
-  names(clusters) <- rownames(sim)
-
-  if (!allow1) {
-    clusters <- clusters[ clusters != 0 ]
-  }
-
-  if (minClusterSize != 1) {
-    sizes <- clusters %>% table
-    ids <- names(sizes)[ sizes >= minClusterSize ]
-    clusters <- clusters[ clusters %in% ids ]
-  }
+  names(clusters) <- colnames(sim)
 
   if (verbose) message('Clustering done')
 
@@ -93,48 +86,47 @@ findClustersMarkov <- function(sim,
 }
 
 #' 
-#' Hierarchical Clustering
+#' Hierarchical clustering
 #' 
-#' @description Finds clusters using hierarchical algorithm.
+#' @description Finds clusters in a similarity matrix using hierarchical clustering algorithm.
 #' 
 #' @param sim similarity matrix
-#' @param minClusterSize minimum cluster size
 #' @param verbose enable / disable log messages
+#'
+#' @importFrom stats as.dist hclust cutree
+#'
+#' @noRd
 #' 
-findClustersHier <- function(sim,
-                             minClusterSize = 2,
-                             verbose = FALSE
-) {
+hierarchical <- function(sim, verbose = FALSE) {
   if (verbose) message('Using Hierarchical Clustering to detect pathway clusters...')
 
-  hCluster <- as.dist(1 - sim) %>% hclust
-  clusters <- cutree(hCluster, h = 0.9)
-
-  if (minClusterSize != 1) {
-    sizes <- clusters %>% table
-    ids <- names(sizes)[ sizes >= minClusterSize ]
-    clusters <- clusters[ clusters %in% ids ]
-  }
+  hCluster <- stats::as.dist(1 - sim) %>% stats::hclust()
+  clusters <- stats::cutree(hCluster, h = 0.9)
 
   if (verbose) message('Clustering done')
 
   clusters
 }
 
-#' 
-#' Spectral Clustering
-#' 
-#' @description Finds clusters using adaptive spectral clustering. Using this method requires that
-#' you have \code{Spectrum} package installed.
-#' 
+#'
+#' Spectral clustering
+#'
+#' @description Finds clusters in a similarity matrix using adaptive spectral clustering.
+#' Using this method requires that you have \code{Spectrum} package installed.
+#'
 #' @param sim similarity matrix
 #' @param verbose enable / disable log messages
-#' 
-findClustersSpectral <- function(sim, verbose = FALSE) {
-  if (verbose) message('Using Spectral Clustering to detect pathway clusters...')
-  requireNamespace(Spectrum)
+#'
+#' @noRd
+#'
+spectral <- function(sim, verbose = FALSE) {
+  if (!requireNamespace('Spectrum', quietly = TRUE)) {
+    stop('Package Spectrum is required to use "spectral" clustering method.')
+  }
 
-  clusters <- Spectrum(sim, maxk = 100, showres = FALSE, silent = !verbose, clusteralg = 'km')
+  if (verbose) message('Using Spectral Clustering to detect pathway clusters...')
+
+  clusters <- Spectrum::Spectrum(sim, maxk = 100, showres = FALSE, silent = !verbose, clusteralg = 'km')
   clusters <- clusters$assignments
   names(clusters) <- colnames(sim)
 

@@ -5,39 +5,34 @@
 #' 
 #' @param sim a similarity matrix used to detect the clusters
 #' @param clusters a vector of clusters, with names indicating the pathway name
-#' 
-#' @import igraph
-#' @import data.table
-#' @import foreach
-#' @importFrom dplyr %>%
-#' 
-clusterNamesPagerank <- function(sim, clusters) {
-  stopifnot(rownames(sim) == colnames(sim))
-  stopifnot(nrow(sim) == ncol(sim))
+#' @param verbose enable / disable log messages
+#'
+#' @importFrom igraph graph_from_data_frame page.rank
 
-  paths <- rownames(sim)
-  edges <- list()
-  counter <- 1
+#' @importFrom data.table setDT setnames .I
+#' @importFrom reshape2 melt
+#'
+#' @noRd
+#'
+pagerank <- function(sim, clusters, verbose = FALSE) {
+  if (verbose) message('Using Pagerank algorithm to assign cluster titles...')
 
-  for (i in 1:(nrow(sim) - 1)) {
-    for (j in (i + 1):ncol(sim)) {
-      value <- sim[ i, j ]
+  edges <- sim %>%
+    reshape2::melt() %>%
+    data.table::setDT() %>%
+    data.table::setnames(c('Path1', 'Path2', 'Value')) %>%
+    merge(clusters, by.x = 'Path1', by.y = 'Pathway') %>%
+    merge(clusters, by.x = 'Path2', by.y = 'Pathway') %>%
+    .[ ClusterID.x == ClusterID.y ] %>%
+    .[ , list(from = Path1, to = Path2, weight = Value) ] %>%
+    as.data.frame()
 
-      clusteri <- clusters[ paths[ i ] ]
-      clusterj <- clusters[ paths[ j ] ]
-      if (!anyNA(c(clusteri, clusterj)) && clusteri == clusterj) {
-        edges[[counter]] <- data.table(from = paths[ i ], to = paths[ j ], weight = value)
-        counter <- counter + 1
-      }
-    }
-  }
+  g <- igraph::graph_from_data_frame(edges, directed = FALSE)
+  scores <- igraph::page.rank(g)$vector
 
-  edges <- rbindlist(edges)
+  if (verbose) message('Pagerank scores calculated')
 
-  g <- graph_from_data_frame(edges, directed = FALSE)
-  scores <- page.rank(g)$vector
-
-  mapClusterNames(scores, clusters)
+  scores
 }
 
 #' 
@@ -47,99 +42,82 @@ clusterNamesPagerank <- function(sim, clusters) {
 #' 
 #' @param sim a similarity matrix used to detect the clusters
 #' @param clusters a vector of clusters, with names indicating the pathway name
-#' 
+#' @param verbose enable / disable log messages
+#'
 #' @importFrom arules hits
-#' @import foreach
-#' @import data.table
-#' @importFrom dplyr %>%
-#' 
-clusterNamesHits <- function(sim, clusters) {
-  adjacency <- adjacencyFromSimilarity(sim, clusters)
+#' @importFrom reshape2 acast
+#' @importFrom data.table setDT setnames .I ':='
+#'
+#' @noRd
+#'
+hits <- function(sim, clusters, verbose = FALSE) {
+  if (verbose) message('Using HITS algorithm to assign cluster titles...')
 
-  scores <- hits(adjacency, type = 'relative')
+  adjacency <- sim %>%
+    reshape2::melt() %>%
+    data.table::setDT() %>%
+    data.table::setnames(c('Path1', 'Path2', 'Value')) %>%
+    merge(clusters, by.x = 'Path1', by.y = 'Pathway') %>%
+    merge(clusters, by.x = 'Path2', by.y = 'Pathway') %>%
+    .[ ClusterID.x == ClusterID.y, Value := 1 ] %>%
+    .[ ClusterID.x != ClusterID.y, Value := 0 ] %>%
+    reshape2::acast(Path1 ~ Path2, value.var = 'Value')
 
-  mapClusterNames(scores, clusters)
+  scores <- arules::hits(adjacency, type = 'relative')
+
+  if (verbose) message('HITS scores calculated')
+
+  scores
 }
 
 #' 
-#' Cluster Name
+#' Cluster name
 #' 
-#' @description Selects the cluster for each pathway from a precalculated cluster title scores.
+#' @description Selects the title for each cluster from precalculated cluster title scores.
 #' 
 #' @param scores pathway evaluation score as cluster center. It is a list with values as scores
 #' and names as pathway descriptions
 #' @param clusters a list of clusters, where values are cluster ID and names are pathway names
 #' 
-#' @import foreach
-#' @import data.table
-#' @importFrom tibble deframe
+#' @importFrom data.table setnames as.data.table .I ':=' .SD .BY
+#' @importFrom tibble enframe
+#'
+#' @noRd
 #' 
-mapClusterNames <- function(scores, clusters) {
-  clusterNames <- foreach(cluster = unique(clusters), .combine = rbind) %do% {
-    name <- scores[ names(scores) %in% names(clusters[ clusters == cluster ]) ] %>%
-      which.max %>%
-      names
+selectClusterName <- function(scores, clusters) {
+  scores <- scores %>%
+    tibble::enframe(name = 'Pathway', value = 'Score') %>%
+    data.table::as.data.table()
 
-    data.table(ClusterID = cluster, Name = name)
-  }
-
-  as.data.table(clusters, keep.rownames = TRUE) %>%
-    merge(clusterNames, by.x = 'clusters', by.y = 'ClusterID') %>%
-    .[ , list(rn, Name) ] %>%
-    deframe
+  merge(scores, clusters, by = 'Pathway') %>%
+    .[ , .SD[ which.max(Score) ], by = ClusterID ] %>%
+    .[ , list(ClusterID, Pathway) ] %>%
+    .[ order(ClusterID) ] %>%
+    data.table::setnames('Pathway', 'Cluster')
 }
 
 #' 
-#' Adjacency Matrix
+#' Assign cluster name
 #' 
-#' @description Creates an adjacency matrix from similarity matrix, connecting nodes that belong to
-#' the same cluster.
-#' 
-#' @param sim similarity matrix
-#' @param clusters list of clusters
-#' 
-adjacencyFromSimilarity <- function(sim, clusters) {
-  stopifnot(rownames(sim) == colnames(sim))
-  stopifnot(nrow(sim) == ncol(sim))
-
-  d <- nrow(sim)
-  paths <- rownames(sim)
-  names(paths) <- paths
-
-  adjacency <- emptyMatrix(paths, data = 0)
-
-  for (i in 1:(d - 1)) {
-    for (j in (i + 1):d) {
-      clusteri <- clusters[ paths[ i ] ]
-      clusterj <- clusters[ paths[ j ] ]
-      if (!anyNA(c(clusteri, clusterj)) && clusteri == clusterj) {
-        adjacency[ i, j ] <- 1
-        adjacency[ j, i ] <- 1
-      }
-    }
-  }
-
-  adjacency
-}
-
-#' 
-#' Cluster Name
-#' 
-#' @description Selects best fitting name for a cluster of pathways.
-#' 
+#' @description Assigns each pathway cluster a name using the specified method.
+#'
+#' @param enrichment enrichment analysis result with ranks
 #' @param sim similarity matrix used to detect the clusters
-#' @param clusters a list of clusters, where values are cluster ID and names are pathway names
-#' @param method a method for setting cluster names. Available method include \code{'pagerank'},
-#' \code{'hits'} and \code{'none'}
-#' 
-findClusterNames <- function(sim,
-                             clusters,
-                             method = c('pagerank', 'hits', 'none')) {
+#' @param clusters clusters within the data
+#' @param method the method to be used for assigning the cluster names. Available methods are: \code{'pagerank'}
+#' and \code{'hits'}.
+#' @param verbose enable / disable log messages
+#'
+#' @noRd
+#'
+clusterName <- function(enrichment, sim, clusters, method = c('pagerank', 'hits', 'nes', 'pval'), verbose = FALSE) {
   method <- match.arg(method)
 
-  switch(method,
-         'pagerank' = clusterNamesPagerank(sim, clusters),
-         'hits' = clusterNamesHits(sim, clusters),
-         'none' = clusters
-  )
+  scores <- switch(method,
+                   'pagerank' = pagerank(sim, clusters, verbose),
+                   'hits' = hits(sim, clusters, verbose),
+                   'nes' = tibble::deframe(enrichment[ , list(Description, Ranks) ]),
+                   'pval' = tibble::deframe(enrichment[ , list(Description, Ranks) ]))
+
+  selectClusterName(scores, clusters)
 }
