@@ -28,7 +28,7 @@ pagerank <- function(sim, clusters, verbose = FALSE) {
     as.data.frame()
 
   g <- igraph::graph_from_data_frame(edges, directed = FALSE)
-  scores <- igraph::page.rank(g)$vector
+  scores <- igraph::page_rank(g)$vector
 
   if (verbose) message('Pagerank scores calculated')
 

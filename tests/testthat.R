@@ -7,6 +7,6 @@
 # * https://testthat.r-lib.org/reference/test_package.html#special-files
 
 library(testthat)
-library(aPEAR)
+library(aPEAR2)
 
-test_check("aPEAR")
+test_check("aPEAR2")

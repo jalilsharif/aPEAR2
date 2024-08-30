@@ -4,3 +4,5 @@
 ^example\.png$
 ^\.git$
 ^\.gitignore$
+^.*\.Rproj$
+^\.Rproj\.user$
