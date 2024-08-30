@@ -73,9 +73,9 @@ findPathClusters <- function(
 
 
 #' 
-#' Find pathway clusters
+#' Find Similarity Coefficients
 #' 
-#' @description Calculates the clusters within the enrichment data based on
+#' @description Calculates the similarities only within the enrichment data based on
 #' pathway similarity.
 #' 
 #' @param enrichment a data.frame containing enrichment results
@@ -102,18 +102,18 @@ findPathClusters <- function(
 #' enrich <- gseGO(geneList, OrgDb = org.Hs.eg.db, ont = 'CC')
 #'
 #' # Obtain clusters within the enriched pathways using default parameters
-#' data <- findPathClusters(enrich@result)
+#' data <- findSimilarity(enrich@result)
 #' data$clusters
 #'
 #' # Obtain clusters within the enriched pathways using hierarchical clustering
 #' # and minClusterSize = 1
-#' data <- findPathClusters(enrich@result, cluster = 'hier', minClusterSize = 1)
+#' data <- findSimilarity(enrich@result, cluster = 'hier', minClusterSize = 1)
 #' data$clusters
 #' }
 #' 
 #' @export
 #'
-#' @return a list of clusters and similarity matrix
+#' @return a list of similarity matrix
 #' 
 findSimilarity <- function(
   enrichment,
@@ -133,5 +133,5 @@ findSimilarity <- function(
   data <- prepareEnrichment(enrichment, methods = methods, verbose = verbose, requireTheme = FALSE)
 
   sim <- similarity(values = data$genes, method = methods$similarity, verbose = verbose)
-  return(list(similarity = sim))
+  return(similarity = sim)
 }
