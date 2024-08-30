@@ -1,4 +1,4 @@
-Package: aPEAR
+Package: aPEAR2
 Title: Advanced Pathway Enrichment Analysis Representation
 Version: 1.0.0
 Authors@R: c(
@@ -11,8 +11,8 @@ Description: Simplify pathway enrichment analysis results by detecting clusters
     respectively. This reduces the redundancy of the overlapping pathways and
     helps to notice the most important biological themes in the data
     (Kerseviciute and Gordevicius (2023) <doi:10.1101/2023.03.28.534514>).
-URL: https://gitlab.com/vugene/aPEAR
-BugReports: https://gitlab.com/vugene/aPEAR/-/issues
+URL: https://github.com/jalilsharif/aPEAR2
+BugReports: https://github.com/jalilsharif/aPEAR2/issues
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

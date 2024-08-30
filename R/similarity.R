@@ -97,3 +97,37 @@ similarity <- function(values, method = c('jaccard', 'cosine', 'correlation'), v
          'correlation' = correlation(values)
   )
 }
+
+
+#'
+#' Overlap Coefficient
+#' 
+#' @description Calculates Overlap Coefficients between lists.
+#'
+#' @param x list of lists.
+#'
+#' @importFrom bayesbio jaccardSets
+#'
+#' @noRd
+#'
+overlapCoefficient <- function(set1, set2) {
+  intersection_size <- length(intersect(set1, set2))
+  min_set_size <- min(length(set1), length(set2))
+  overlap <- intersection_size / min_set_size
+  return(overlap)
+}
+
+# Modify your similarity calculation function to use the overlap coefficient
+similarityOverlap <- function(genes) {
+  sim <- emptyMatrix(genes)
+
+  for (i in seq_along(genes)) {
+    for (j in seq_along(genes)) {
+      if (j > i) { break }
+      sim[ i, j ] <- overlapCoefficient(genes[[i]], genes[[j]])
+      sim[ j, i ] <- sim[ i, j ]
+    }
+  }
+
+  return(sim)
+}

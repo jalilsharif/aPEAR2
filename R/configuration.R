@@ -87,7 +87,7 @@ prepareMethods <- function(methods, ...) {
     methods$minClusterSize <- 1
   }
 
-  methods$similarity <- match.arg(methods$similarity, choices = c('jaccard', 'cosine', 'correlation'))
+  methods$similarity <- match.arg(methods$similarity, choices = c('jaccard', 'cosine', 'correlation', 'similarityOverlap'))
   methods$cluster <- match.arg(methods$cluster, choices = c('markov', 'hier', 'spectral'))
   methods$clusterName <- match.arg(methods$clusterName, choices = c('pagerank', 'hits', 'nes', 'pval'))
 
